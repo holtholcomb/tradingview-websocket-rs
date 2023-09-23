@@ -9,7 +9,7 @@ trait ReadWrite: Read + Write {}
 impl<T: Read + Write + ?Sized> ReadWrite for T {}
 
 #[derive(Debug)]
-pub enum WebsocketError {
+pub enum WebSocketError {
     ReadError,
     ChannelSendError,
     ChannelReceiveError,
@@ -23,28 +23,28 @@ pub enum WebsocketError {
     StringConversionError
 }
 
-impl std::fmt::Display for WebsocketError {
+impl std::fmt::Display for WebSocketError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match *self {
-            WebsocketError::ReadError => write!(f, "Read error"),
-            WebsocketError::ChannelSendError => write!(f, "Channel send error"),
-            WebsocketError::ChannelReceiveError => write!(f, "Channel receive error"),
-            WebsocketError::FrameEncodeError => write!(f, "Frame encode error"),
-            WebsocketError::FrameDecodeError => write!(f, "Frame decode error"),
-            WebsocketError::WriteError => write!(f, "Write error"),
-            WebsocketError::AddressParseError => write!(f, "Address parse error"),
-            WebsocketError::ConnectError => write!(f, "Connect error"),
-            WebsocketError::TlsCreationError => write!(f, "TLS creation error"),
-            WebsocketError::TlsConnectError => write!(f, "TLS connect error"),
-            WebsocketError::StringConversionError => write!(f, "String conversion error"),
+            WebSocketError::ReadError => write!(f, "Read error"),
+            WebSocketError::ChannelSendError => write!(f, "Channel send error"),
+            WebSocketError::ChannelReceiveError => write!(f, "Channel receive error"),
+            WebSocketError::FrameEncodeError => write!(f, "Frame encode error"),
+            WebSocketError::FrameDecodeError => write!(f, "Frame decode error"),
+            WebSocketError::WriteError => write!(f, "Write error"),
+            WebSocketError::AddressParseError => write!(f, "Address parse error"),
+            WebSocketError::ConnectError => write!(f, "Connect error"),
+            WebSocketError::TlsCreationError => write!(f, "TLS creation error"),
+            WebSocketError::TlsConnectError => write!(f, "TLS connect error"),
+            WebSocketError::StringConversionError => write!(f, "String conversion error"),
         }
     }
 }
 
-impl Error for WebsocketError {}
+impl Error for WebSocketError {}
 
-impl From<WebsocketError> for Box<dyn std::error::Error + Send> {
-    fn from(error: WebsocketError) -> Self {
+impl From<WebSocketError> for Box<dyn std::error::Error + Send> {
+    fn from(error: WebSocketError) -> Self {
         Box::new(error)
     }
 }
@@ -57,12 +57,12 @@ pub struct WebSocket {
 
 impl WebSocket {
     pub fn new(incoming_tx: Sender<String>, outgoing_rx: Receiver<Vec<String>>) -> Result<WebSocket, Box<dyn Error + Send>> {
-        let addr = "data.tradingview.com:443".to_socket_addrs().map_err(|_| WebsocketError::AddressParseError)?.next().unwrap();
-        let stream = TcpStream::connect(addr).map_err(|_| WebsocketError::ConnectError)?;
+        let addr = "data.tradingview.com:443".to_socket_addrs().map_err(|_| WebSocketError::AddressParseError)?.next().unwrap();
+        let stream = TcpStream::connect(addr).map_err(|_| WebSocketError::ConnectError)?;
 
         // Establish a TLS connection
-        let connector = TlsConnector::new().map_err(|_| WebsocketError::TlsCreationError)?;
-        let mut tls_stream = connector.connect("data.tradingview.com", stream).map_err(|_| WebsocketError::TlsConnectError)?;
+        let connector = TlsConnector::new().map_err(|_| WebSocketError::TlsCreationError)?;
+        let mut tls_stream = connector.connect("data.tradingview.com", stream).map_err(|_| WebSocketError::TlsConnectError)?;
         
         // Perform the WebSocket handshake with the server manually.
         let request = "\
@@ -74,12 +74,12 @@ impl WebSocket {
             Sec-WebSocket-Version: 13\r\n\
             Origin: https://www.tradingview.com\r\n\
             \r\n";
-        tls_stream.write_all(request.as_bytes()).map_err(|_| WebsocketError::WriteError)?;
+        tls_stream.write_all(request.as_bytes()).map_err(|_| WebSocketError::WriteError)?;
 
         // Read the server's response to ensure it's a 101 Switching Protocols response.
         let mut buffer = [0u8; 65536];
-        tls_stream.read(&mut buffer).map_err(|_| WebsocketError::ReadError)?;
-        let response = std::str::from_utf8(&buffer).map_err(|_| WebsocketError::StringConversionError)?;
+        tls_stream.read(&mut buffer).map_err(|_| WebSocketError::ReadError)?;
+        let response = std::str::from_utf8(&buffer).map_err(|_| WebSocketError::StringConversionError)?;
         assert!(response.contains("101 Switching Protocols"));
 
         Ok(WebSocket { 
@@ -89,7 +89,7 @@ impl WebSocket {
         })
     }
     
-    fn decode_websocket_frame(&self, buffer: &mut VecDeque<u8>) -> Result<Option<String>, Box<dyn Error>> {
+    fn decode_frame(&self, buffer: &mut VecDeque<u8>) -> Result<Option<String>, Box<dyn Error>> {
         if buffer.len() < 2 {
             return Ok(None);  // Not enough data
         }
@@ -155,7 +155,7 @@ impl WebSocket {
         }
     }
 
-    fn encode_websocket_text_frame(&self, data: &str) -> Result<Vec<u8>, Box<dyn Error>> {
+    fn encode_text_frame(&self, data: &str) -> Result<Vec<u8>, Box<dyn Error>> {
         let mut frame = vec![];
 
         let payload_length = data.len();
@@ -208,7 +208,7 @@ impl WebSocket {
 
         let mut temp_buffer = [0u8; 65536];
         loop {
-            let read_bytes = self.tls_stream.read(&mut temp_buffer).map_err(|_| WebsocketError::ReadError)?;
+            let read_bytes = self.tls_stream.read(&mut temp_buffer).map_err(|_| WebSocketError::ReadError)?;
 
             if read_bytes == 0 {
                 break;  // The stream has closed or there's an error.
@@ -217,18 +217,18 @@ impl WebSocket {
             rx_buffer.extend(&temp_buffer[0..read_bytes]);
 
             loop {
-                match self.decode_websocket_frame(&mut rx_buffer) {
+                match self.decode_frame(&mut rx_buffer) {
                     Ok(Some(incoming_message)) => {
-                        self.incoming_tx.send(incoming_message).map_err(|_| WebsocketError::ChannelSendError)?;
-                        let outgoing_messages = self.outgoing_rx.recv().map_err(|_| WebsocketError::ChannelReceiveError)?;
+                        self.incoming_tx.send(incoming_message).map_err(|_| WebSocketError::ChannelSendError)?;
+                        let outgoing_messages = self.outgoing_rx.recv().map_err(|_| WebSocketError::ChannelReceiveError)?;
                         for outgoing_message in outgoing_messages {
                             println!("outgoing_message: {}", outgoing_message);
-                            let encoded_frame = self.encode_websocket_text_frame(&outgoing_message).map_err(|_| WebsocketError::FrameEncodeError)?;
-                            self.tls_stream.write_all(&encoded_frame).map_err(|_| WebsocketError::WriteError)?;
+                            let encoded_frame = self.encode_text_frame(&outgoing_message).map_err(|_| WebSocketError::FrameEncodeError)?;
+                            self.tls_stream.write_all(&encoded_frame).map_err(|_| WebSocketError::WriteError)?;
                         }
                     },
                     Ok(None) => break,  // Not enough data yet
-                    Err(_) => return Err(WebsocketError::FrameDecodeError.into()),
+                    Err(_) => return Err(WebSocketError::FrameDecodeError.into()),
                 }
             }
         }

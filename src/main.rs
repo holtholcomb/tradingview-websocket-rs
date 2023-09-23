@@ -1,10 +1,10 @@
 mod websocket;
-mod trading_view_api;
+mod tradingview_api;
 
 use std::error::Error;
 use std::sync::mpsc;
 
-use trading_view_api::TradingViewApi;
+use tradingview_api::TradingViewApi;
 use websocket::WebSocket;
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -19,12 +19,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         websocket.handle_stream()
     });
     let trading_view_result = trading_view_thread.join().expect("TradingView thread panicked");
-    let websocket_result = websocket_thread.join().expect("Websocket thread panicked");
+    let websocket_result = websocket_thread.join().expect("WebSocket thread panicked");
     if let Err(err) = trading_view_result {
         eprintln!("Error in TradingView thread: {:?}", err);
     }
     if let Err(err) = websocket_result {
-        eprintln!("Error in Websocket thread: {:?}", err);
+        eprintln!("Error in WebSocket thread: {:?}", err);
     }
     Ok(())
 }

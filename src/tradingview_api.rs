@@ -9,6 +9,9 @@ pub enum TradingViewError {
     SerializationError,
     SendError,
     ReceiveError,
+    StudyError(Value),
+    CriticalError(Value),
+    ProtocolError(Value)
 }
 
 impl std::fmt::Display for TradingViewError {
@@ -18,6 +21,9 @@ impl std::fmt::Display for TradingViewError {
             TradingViewError::SerializationError => write!(f, "Serialization error"),
             TradingViewError::SendError => write!(f, "Send error"),
             TradingViewError::ReceiveError => write!(f, "Receive error"),
+            TradingViewError::StudyError(ref value) => write!(f, "Study error"),
+            TradingViewError::CriticalError(ref value) => write!(f, "Critical error"),
+            TradingViewError::ProtocolError(ref value) => write!(f, "Protocol error"),
         }
     }
 }
@@ -359,13 +365,13 @@ impl TradingViewApi {
                     }
                     MessageType::Empty => {},
                     MessageType::StudyError(message) => {
-                        panic!("study_error: {}", message);
+                        return Err(Box::new(TradingViewError::StudyError(message)));
                     }
                     MessageType::CriticalError(message) => {
-                        panic!("critical_error: {}", message);
+                        return Err(Box::new(TradingViewError::CriticalError(message)));
                     }
                     MessageType::ProtocolError(message) => {
-                        panic!("protocol_error: {}", message);
+                        return Err(Box::new(TradingViewError::ProtocolError(message)));
                     },
                 }
             }
